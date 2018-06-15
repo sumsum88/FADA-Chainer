@@ -38,22 +38,16 @@ class Concat(chainer.Chain):
         return self.h(self.g(x))
 
 
-def main(a):
+def main(args):
     print('GPU: {}'.format(args.gpu))
-    print('# Pretrain')
-    pre_epoch = 3
-    print('# epoch: {}'.format(pre_epoch))
-    # Set up a neural network to train
-    # g = VGGFeature(pretrain=True)
+
     g = VGG()
     gcl = L.Classifier(g)
-    dcd = DCDNet()
 
     if args.gpu >= 0:
         chainer.backends.cuda.get_device_from_id(args.gpu).use()  # Make a specified GPU current
         g.to_gpu(args.gpu)  # Copy the models to the GPU
         gcl.to_gpu(args.gpu)  # Copy the models to the GPU
-        dcd.to_gpu(args.gpu)
 
     # Setup an optimizer
     def make_optimizer(model, alpha=0.0002, beta1=0.5):
@@ -62,17 +56,37 @@ def main(a):
         optimizer.add_hook(chainer.optimizer.WeightDecay(0.00001), 'hook_dec')
         return optimizer
 
-    opt_gcl = make_optimizer(gcl)
-    opt_dcd = make_optimizer(dcd)
+    # g_path = os.path.join(args.output_path, 'g.npz')
+    g_path = os.path.join(output_path, '0614FADA', 'g.npz')
+    if os.path.exists(g_path):
+        print('g.npz detected')
+        try:
+            serializers.load_npz(g_path, g)
+        except:
+            serializers.load_npz(g_path, gcl)
+    else:
+        exit()
 
-    # pretrain
-    train, test = get_mnist(ndim=3)
-    train_iter = chainer.iterators.SerialIterator(train, 32)
+    ######################################################################
+    print('# Train')
+    print('# Minibatch-size: {}'.format(args.batchsize))
+    print('# epoch: {}'.format(args.epoch))
+    print('')
+
+    opt_gcl = make_optimizer(gcl)
+    opt_gcl.add_hook(DelGradient([
+        'block1_1', 'block1_2', 'block2_1', 'block2_2',
+        'block3_1', 'block3_2', 'block3_3', 'block4_1', 'block4_2', 'block4_3',
+        'block5_1', 'block5_2', 'block5_3'
+    ]))
+    train = SVHNDataset(src='train', k=args.k_shots)
+    test = SVHNDataset(src='test', size=1000)
+    train_iter = chainer.iterators.SerialIterator(train, args.batchsize)
     test_iter = chainer.iterators.SerialIterator(test, args.batchsize,
                                                  repeat=False, shuffle=False)
     updater = training.StandardUpdater(train_iter, opt_gcl, device=args.gpu)
 
-    trainer = training.Trainer(updater, (pre_epoch, 'epoch'), out=args.output_path)
+    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.output_path)
     trainer.extend(extensions.LogReport())
     trainer.extend(extensions.Evaluator(test_iter, gcl, device=args.gpu))
     trainer.extend(extensions.PrintReport([
@@ -84,66 +98,6 @@ def main(a):
         trigger=(100, 'epoch')
     )
     trainer.extend(extensions.ProgressBar())
-
-    g_path = os.path.join(args.output_path, 'g.npz')
-    if os.path.exists(g_path):
-        ans = input('g.npz detected. Do you want to load it? [y/n]')
-        if ans == 'y':
-            try:
-                serializers.load_npz(g_path, g)
-            except:
-                serializers.load_npz(g_path, gcl)
-        else:
-            trainer.run()
-            serializers.save_npz(g_path, g)
-    else:
-        trainer.run()
-        serializers.save_npz(g_path, g)
-
-    e = extensions.Evaluator(test_iter, gcl, device=args.gpu)
-    print(e())
-
-    ######################################################################
-    print('# Train')
-    print('# Minibatch-size: {}'.format(args.batchsize))
-    print('# epoch: {}'.format(args.epoch))
-    print('')
-
-    opt_g = make_optimizer(g)
-    train_set = MNISTSVHNDataset2()
-
-    train_iter = chainer.iterators.SerialIterator(train_set, args.batchsize)
-    # test_iter = chainer.iterators.SerialIterator(test_set, args.batchsize)
-
-    # Set up a trainer
-    updater = FADAUpdater(
-        models=(g, dcd),
-        iterator={
-            'main': train_iter,
-            # 'test': test_iter,
-        },
-        optimizer={
-            'g': opt_g,
-            'dcd': opt_dcd},
-        device=args.gpu)
-
-    trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.output_path)
-
-    snapshot_interval = (10, 'epoch')
-
-    trainer.extend(extensions.snapshot(
-        filename='snapshot'),
-                   trigger=snapshot_interval)
-    trainer.extend(extensions.snapshot_object(
-        g, 'g_iter_{.updater.epoch}.npz'), trigger=snapshot_interval)
-    trainer.extend(extensions.snapshot_object(
-        dcd, 'dcd_iter_{.updater.epoch}.npz'), trigger=snapshot_interval)
-    trainer.extend(extensions.LogReport())
-    trainer.extend(extensions.PrintReport([
-        'epoch', 'iteration', 'g/loss', 'g/acc_s', 'g/acc_t', 'dcd/loss', 'dcd/acc', 'elapsed_time'
-    ]))
-    trainer.extend(extensions.PlotReport(['g/acc_s', 'g/acc_t', 'dcd/acc'], file_name='acc.png'))
-    trainer.extend(extensions.PlotReport(['g/loss', 'dcd/loss'], file_name='loss.png'))
     # trainer.extend(extensions.ProgressBar(update_interval=10))
 
     if args.resume:
@@ -152,6 +106,10 @@ def main(a):
 
     # Run the training
     trainer.run()
+
+    e = extensions.Evaluator(test_iter, gcl, device=args.gpu)
+    print('# Test')
+    print(e())
 
 
 if __name__ == '__main__':
@@ -174,6 +132,8 @@ if __name__ == '__main__':
                    help='number of epochs (default: 100)')
     p.add_argument('-g', '--gpu', metavar='N', type=int, default=0,
                    help='gpu id (-1 if use cpu)')
+    p.add_argument('-k', '--k_shots', metavar='N', type=int, default=5,
+                   help='number of target')
     p.add_argument('-r', '--resume', dest='resume', action='store_true')
 
     args = p.parse_args()

@@ -4,10 +4,54 @@ from chainer.dataset import dataset_mixin
 from scipy import io
 from chainer.datasets import get_mnist
 from scipy.misc import imresize
+from collections import defaultdict
 
 
 # dataset_path = '/data/ugui0/ksaito/SVHN_MNIST'
 dataset_path = os.path.join(os.getenv('DATASET_PATH'), 'SVHN_MNIST')
+
+
+class SVHNDataset(dataset_mixin.DatasetMixin):
+    img_size = (28, 28)
+
+    def __init__(self, root=dataset_path, src='train', size=1000, k=None):
+        if src == 'train':
+            mat = io.loadmat(os.path.join(root, 'train_32x32.mat'))
+        elif src == 'test':
+            mat = io.loadmat(os.path.join(root, 'test_32x32.mat'))
+        else:
+            raise ValueError
+
+        matx = mat['X'].transpose(2, 3, 0, 1).mean(axis=0)
+        maty = mat['y'][:, 0].astype(np.int8)
+        if k is None:
+            self.x = []
+            for x in matx[:size]:
+                self.x.append(imresize(x, self.img_size)[np.newaxis, ...])
+
+            self.x = np.array(self.x, dtype=np.float32)
+            self.y = maty[:size]
+
+        else:
+            self.x, self.y = [], []
+            counter = defaultdict(int)
+
+            n, i = 0, 0
+            while n < k * 10:
+                x = imresize(matx[n], self.img_size)[np.newaxis, ...]
+                y = maty[n]
+                if counter[y] < k:
+                    self.x.append(x)
+                    self.y.append(y)
+                    n += 1
+                i += 1
+            self.x = np.array(self.x, dtype=np.float32)
+
+    def __len__(self):
+        return len(self.x)
+
+    def get_example(self, i):
+        return self.x[i], self.y[i]
 
 
 class MNISTSVHNDataset(dataset_mixin.DatasetMixin):
@@ -54,7 +98,7 @@ class MNISTSVHNDataset2(dataset_mixin.DatasetMixin):
     img_size = (28, 28)
     n_classes = 10
 
-    def __init__(self, svhn_path=dataset_path, n_mnist=100, n_svhn=5):
+    def __init__(self, svhn_path=dataset_path, n_mnist=1000, n_svhn=5):
         mat = io.loadmat(os.path.join(svhn_path, 'train_32x32.mat'))
         svhn_x = mat['X'].transpose(2, 0, 1, 3).mean(axis=0)
         svhn_y = mat['y'][:, 0]

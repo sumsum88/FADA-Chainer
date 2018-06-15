@@ -1,3 +1,4 @@
+
 import numpy as np
 from chainer import Variable
 from chainer import Link, Chain
