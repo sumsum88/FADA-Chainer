@@ -1,9 +1,3 @@
-
-import numpy as np
-from chainer import Variable
-from chainer import Link, Chain
-import chainer.functions as F
-import chainer.links as L
 import chainer
 
 

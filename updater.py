@@ -6,9 +6,9 @@ from chainer import Variable
 import numpy as np
 
 
-
 def v(x):
     return Variable(np.asarray(x, dtype=np.float32))
+
 def vi(x):
     return Variable(np.asarray(x, dtype=np.int32))
 
@@ -25,7 +25,7 @@ class FADAUpdater(chainer.training.StandardUpdater):
         loss_g = loss_1 + loss_2
         chainer.report({'acc_s': F.accuracy(y1_out, y1)}, self.g)
 
-        if d == 1:   # work only if batchsize == 1
+        if d == 1:   # work only if batchsize == 1 (TODO)
             v_0 = vi([0])
             v_0.to_gpu(0)
             loss_d = F.softmax_cross_entropy(d_out, v_0)
@@ -91,10 +91,13 @@ class FADAUpdater(chainer.training.StandardUpdater):
             z1 = g(x_1, feature=True)
             z2 = g(x_2, feature=True)
             y1_out, y2_out = g(x_1), g(x_2)
+
         d_out = dcd(F.concat([z1, z2], axis=1))  # 1 * 512 * 14 * 7 -> 1 * 4
 
         # update g and h
         g_optimizer.update(self.loss_fada_g, y1_out, y2_out, d_out, y_1, y_2, d)
+
+        d_out = dcd(F.concat([z1, z2], axis=1))  # 1 * 512 * 14 * 7 -> 1 * 4
 
         # update DCD
         z1.unchain_backward()

@@ -7,7 +7,6 @@ from scipy.misc import imresize
 from collections import defaultdict
 
 
-# dataset_path = '/data/ugui0/ksaito/SVHN_MNIST'
 dataset_path = os.path.join(os.getenv('DATASET_PATH'), 'SVHN_MNIST')
 
 
@@ -54,47 +53,47 @@ class SVHNDataset(dataset_mixin.DatasetMixin):
         return self.x[i], self.y[i]
 
 
+# class MNISTSVHNDataset(dataset_mixin.DatasetMixin):
+#     img_size = (28, 28)
+#
+#     def __init__(self, svhn_path=dataset_path, n_svhn=50):
+#         mat = io.loadmat(os.path.join(svhn_path, 'train_32x32.mat'))
+#         self.svhn_x = mat['X'][..., :n_svhn].transpose(2, 0, 1, 3).mean(axis=0)
+#         self.svhn_y = mat['y'][:n_svhn, 0]
+#         train, test = get_mnist(ndim=3)
+#
+#         self.mnist = train
+#         self.n_svhn = n_svhn
+#
+#     def __len__(self):
+#         return 100#`len(self.mnist)
+#
+#     def get_example(self, index):
+#         mnist_x, mnist_y = self.mnist[index]
+#         if np.random.rand() >= 0.5:
+#             # S * S
+#             j = np.random.randint(len(self.mnist))
+#             mnist_x_, mnist_y_ = self.mnist[j]
+#             if mnist_y == mnist_y_:
+#                 d = 0
+#             else:
+#                 d = 2
+#             return (mnist_x, mnist_x_), (mnist_y, mnist_y_), d
+#         else:
+#             # S * T
+#             j = np.random.randint(self.n_svhn)
+#             svhn_x = self.svhn_x[..., j]
+#             svhn_y = self.svhn_y[..., j]
+#             svhn_x = imresize(svhn_x, self.img_size)[np.newaxis, ...]
+#             if mnist_y == svhn_y:
+#                 d = 1
+#             else:
+#                 d = 3
+#
+#             return (mnist_x, svhn_x), (mnist_y, svhn_y), d
+
+
 class MNISTSVHNDataset(dataset_mixin.DatasetMixin):
-    img_size = (28, 28)
-
-    def __init__(self, svhn_path=dataset_path, n_svhn=50):
-        mat = io.loadmat(os.path.join(svhn_path, 'train_32x32.mat'))
-        self.svhn_x = mat['X'][..., :n_svhn].transpose(2, 0, 1, 3).mean(axis=0)
-        self.svhn_y = mat['y'][:n_svhn, 0]
-        train, test = get_mnist(ndim=3)
-
-        self.mnist = train
-        self.n_svhn = n_svhn
-
-    def __len__(self):
-        return 100#`len(self.mnist)
-
-    def get_example(self, index):
-        mnist_x, mnist_y = self.mnist[index]
-        if np.random.rand() >= 0.5:
-            # S * S
-            j = np.random.randint(len(self.mnist))
-            mnist_x_, mnist_y_ = self.mnist[j]
-            if mnist_y == mnist_y_:
-                d = 0
-            else:
-                d = 2
-            return (mnist_x, mnist_x_), (mnist_y, mnist_y_), d
-        else:
-            # S * T
-            j = np.random.randint(self.n_svhn)
-            svhn_x = self.svhn_x[..., j]
-            svhn_y = self.svhn_y[..., j]
-            svhn_x = imresize(svhn_x, self.img_size)[np.newaxis, ...]
-            if mnist_y == svhn_y:
-                d = 1
-            else:
-                d = 3
-
-            return (mnist_x, svhn_x), (mnist_y, svhn_y), d
-
-
-class MNISTSVHNDataset2(dataset_mixin.DatasetMixin):
     img_size = (28, 28)
     n_classes = 10
 
@@ -181,12 +180,3 @@ class MNISTSVHNDataset2(dataset_mixin.DatasetMixin):
                 if verbose:
                     print('S * T diff')
                 return (mnist_x, svhn_x), (c, c_), d
-
-
-if __name__ == '__main__':
-    m = MNISTSVHNDataset2()
-    m.get_example(0, True)
-    m.get_example(1, True)
-    m.get_example(2, True)
-    m.get_example(3, True)
-    m.get_example(4, True)

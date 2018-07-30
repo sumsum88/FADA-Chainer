@@ -1,28 +1,20 @@
 import os
-import glob
 import argparse
-import random
 
-dataset_path = os.getenv('DATASET_PATH')
-output_path = os.getenv('OUTPUT_PATH')
+dataset_path = os.getenv('DATASET_PATH', './')
+output_path = os.getenv('OUTPUT_PATH', './')
 
-
-import numpy as np
-
-import chainer
-from chainer import cuda, Function, gradient_check, report, training, utils, Variable
+from chainer import training, utils, Variable
 from chainer import datasets, iterators, optimizers, serializers
 from chainer.training import extensions
-import chainer.links as L
-import chainer.functions as F
 from dataset import *
 from updater import FADAUpdater
-
 from model import *
 
 
 def v(x):
     return Variable(np.asarray(x, dtype=np.float32))
+
 
 def vi(x):
     return Variable(np.asarray(x, dtype=np.int32))
@@ -38,7 +30,7 @@ class Concat(chainer.Chain):
         return self.h(self.g(x))
 
 
-def main(a):
+def main(args):
     print('GPU: {}'.format(args.gpu))
     print('# Pretrain')
     pre_epoch = 3
@@ -87,21 +79,17 @@ def main(a):
 
     g_path = os.path.join(args.output_path, 'g.npz')
     if os.path.exists(g_path):
-        ans = input('g.npz detected. Do you want to load it? [y/n]')
-        if ans == 'y':
-            try:
-                serializers.load_npz(g_path, g)
-            except:
-                serializers.load_npz(g_path, gcl)
-        else:
-            trainer.run()
-            serializers.save_npz(g_path, g)
+        try:
+            serializers.load_npz(g_path, g)
+        except:
+            serializers.load_npz(g_path, gcl)
+        print('g.npz loaded')
     else:
         trainer.run()
         serializers.save_npz(g_path, g)
 
-    e = extensions.Evaluator(test_iter, gcl, device=args.gpu)
-    print(e())
+    # e = extensions.Evaluator(test_iter, gcl, device=args.gpu)
+    # print(e())
 
     ######################################################################
     print('# Train')
@@ -110,9 +98,9 @@ def main(a):
     print('')
 
     opt_g = make_optimizer(g)
-    train_set = MNISTSVHNDataset2()
+    train_set = MNISTSVHNDataset()
 
-    train_iter = chainer.iterators.SerialIterator(train_set, args.batchsize)
+    train_iter = chainer.iterators.SerialIterator(train_set, args.batchsize, repeat=False, shuffle=False)
     # test_iter = chainer.iterators.SerialIterator(test_set, args.batchsize)
 
     # Set up a trainer
@@ -125,7 +113,8 @@ def main(a):
         optimizer={
             'g': opt_g,
             'dcd': opt_dcd},
-        device=args.gpu)
+        device=args.gpu
+    )
 
     trainer = training.Trainer(updater, (args.epoch, 'epoch'), out=args.output_path)
 
@@ -160,11 +149,6 @@ if __name__ == '__main__':
     # dataset io
     p.add_argument('-o', '--output_path', metavar='PATH', type=str, default='test',
                    help='output_path (default: ./output)')
-    # p.add_argument('-d', '--dataset', type=str, default='CS',
-    #                help='MSRC or DSD or CS')
-    # p.add_argument('-m', '--model', type=str, default='U',
-    #                help='U or Refine')
-
     # train
     p.add_argument('-b', '--batchsize', metavar='N', type=int, default=1,
                    help='batch size (default: 128)')
